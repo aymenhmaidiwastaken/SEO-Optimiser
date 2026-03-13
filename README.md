@@ -152,19 +152,6 @@ Edit `app/config.py` or set environment variables:
 | `MAX_DEPTH` | 5 | Max crawl depth |
 | `REQUEST_TIMEOUT` | 30s | Per-request timeout |
 
-## Taking Demo Screenshots
-
-```bash
-# Install playwright (one-time)
-pip install playwright
-python -m playwright install chromium
-
-# Take screenshots (starts server, crawls a site, captures pages)
-python take_screenshots.py https://example.com
-```
-
-Screenshots are saved to `screenshots/`.
-
 ## License
 
 MIT

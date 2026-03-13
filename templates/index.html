@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}SEO Optimizer - Dashboard{% endblock %}
+
+{% block content %}
+<div x-data="crawlApp()">
+    <!-- Hero / URL Input -->
+    <div class="bg-white rounded-xl shadow-sm border p-8 mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">SEO Analyzer</h1>
+        <p class="text-gray-500 mb-6">Enter a URL to crawl and analyze your website's SEO performance across 8 categories.</p>
+
+        <form @submit.prevent="startCrawl" class="space-y-4">
+            <div class="flex gap-4">
+                <input type="url" x-model="url" placeholder="https://example.com"
+                    class="flex-1 rounded-lg border-gray-300 border px-4 py-3 text-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                    required>
+                <button type="submit" :disabled="crawling"
+                    class="bg-indigo-600 text-white px-8 py-3 rounded-lg text-lg font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+                    <span x-show="!crawling">Analyze</span>
+                    <span x-show="crawling" class="flex items-center gap-2">
+                        <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        Crawling...
+                    </span>
+                </button>
+            </div>
+
+            <!-- Settings -->
+            <div class="flex gap-6 text-sm" x-show="showSettings" x-transition>
+                <label class="flex items-center gap-2">
+                    <span class="text-gray-600">Max Pages:</span>
+                    <input type="number" x-model.number="maxPages" min="1" max="500"
+                        class="w-20 rounded border-gray-300 border px-2 py-1">
+                </label>
+                <label class="flex items-center gap-2">
+                    <span class="text-gray-600">Max Depth:</span>
+                    <input type="number" x-model.number="maxDepth" min="1" max="10"
+                        class="w-20 rounded border-gray-300 border px-2 py-1">
+                </label>
+            </div>
+            <button type="button" @click="showSettings = !showSettings" class="text-sm text-indigo-600 hover:text-indigo-800">
+                <span x-text="showSettings ? 'Hide settings' : 'Advanced settings'"></span>
+            </button>
+        </form>
+
+        <!-- Progress -->
+        <div x-show="crawling" x-transition class="mt-6">
+            <div class="flex justify-between text-sm text-gray-600 mb-2">
+                <span x-text="progressStatus"></span>
+                <span x-text="pagesCrawled + ' pages crawled'"></span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-3">
+                <div class="bg-indigo-600 h-3 rounded-full transition-all duration-300"
+                    :style="'width: ' + progressPercent + '%'"></div>
+            </div>
+            <p class="text-xs text-gray-400 mt-1 truncate" x-text="currentUrl"></p>
+        </div>
+    </div>
+
+    <!-- Past Analyses -->
+    <div class="bg-white rounded-xl shadow-sm border">
+        <div class="px-6 py-4 border-b">
+            <h2 class="text-lg font-semibold text-gray-900">Analysis History</h2>
+        </div>
+        {% if jobs %}
+        <div class="divide-y">
+            {% for job in jobs %}
+            <div class="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                <div class="flex items-center gap-4">
+                    {% if job.status.value == 'complete' %}
+                    <div class="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold
+                        {% if job.overall_score and job.overall_score >= 80 %}bg-green-100 text-green-700
+                        {% elif job.overall_score and job.overall_score >= 50 %}bg-yellow-100 text-yellow-700
+                        {% else %}bg-red-100 text-red-700{% endif %}">
+                        {{ job.overall_score|round|int if job.overall_score else '?' }}
+                    </div>
+                    {% elif job.status.value == 'crawling' or job.status.value == 'analyzing' %}
+                    <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                        <svg class="animate-spin h-6 w-6 text-blue-600" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    </div>
+                    {% elif job.status.value == 'failed' %}
+                    <div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </div>
+                    {% endif %}
+                    <div>
+                        <a href="/report/{{ job.id }}" class="text-indigo-600 hover:text-indigo-800 font-medium">{{ job.url }}</a>
+                        <p class="text-sm text-gray-500">{{ job.pages_crawled }} pages &middot; {{ job.created_at.strftime('%b %d, %Y %H:%M') }}</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="text-xs px-2 py-1 rounded-full
+                        {% if job.status.value == 'complete' %}bg-green-100 text-green-700
+                        {% elif job.status.value == 'crawling' %}bg-blue-100 text-blue-700
+                        {% elif job.status.value == 'failed' %}bg-red-100 text-red-700
+                        {% else %}bg-gray-100 text-gray-700{% endif %}">
+                        {{ job.status.value }}
+                    </span>
+                    {% if job.status.value == 'complete' %}
+                    <a href="/report/{{ job.id }}" class="text-sm text-indigo-600 hover:text-indigo-800">View Report &rarr;</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="px-6 py-12 text-center text-gray-500">
+            <p>No analyses yet. Enter a URL above to get started.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/crawl.js"></script>
+{% endblock %}

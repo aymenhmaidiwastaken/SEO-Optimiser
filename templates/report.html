@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% block title %}SEO Report - {{ job.url }}{% endblock %}
+
+{% block content %}
+<div x-data="reportApp()">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">SEO Report</h1>
+            <p class="text-gray-500">{{ job.url }} &middot; {{ job.pages_crawled }} pages analyzed &middot; {{ job.created_at.strftime('%b %d, %Y') }}</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="/export/{{ job.id }}/html" class="px-4 py-2 bg-white border rounded-lg text-sm hover:bg-gray-50">Export HTML</a>
+            <a href="/export/{{ job.id }}/pdf" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">Export PDF</a>
+        </div>
+    </div>
+
+    <!-- Overall Score -->
+    <div class="bg-white rounded-xl shadow-sm border p-6 mb-6">
+        <div class="flex items-center gap-8">
+            <div class="relative w-32 h-32">
+                <canvas id="overallGauge"></canvas>
+                <div class="absolute inset-0 flex items-center justify-center">
+                    <span class="text-3xl font-bold {% if job.overall_score >= 80 %}text-green-600{% elif job.overall_score >= 50 %}text-yellow-600{% else %}text-red-600{% endif %}">
+                        {{ job.overall_score|round|int }}
+                    </span>
+                </div>
+            </div>
+            <div>
+                <h2 class="text-xl font-semibold text-gray-900">Overall SEO Score</h2>
+                <p class="text-gray-500 mt-1">
+                    {% if job.overall_score >= 80 %}Good shape! Minor improvements possible.
+                    {% elif job.overall_score >= 50 %}Needs improvement in several areas.
+                    {% else %}Significant SEO issues found. Immediate attention recommended.
+                    {% endif %}
+                </p>
+                <div class="flex gap-4 mt-3 text-sm">
+                    <span class="text-red-600 font-medium">{{ issues|selectattr('severity', 'equalto', 'critical')|list|length }} Critical</span>
+                    <span class="text-yellow-600 font-medium">{{ issues|selectattr('severity', 'equalto', 'warning')|list|length }} Warnings</span>
+                    <span class="text-blue-600 font-medium">{{ issues|selectattr('severity', 'equalto', 'info')|list|length }} Info</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Scores -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {% for score in scores %}
+        <div class="bg-white rounded-xl shadow-sm border p-4">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-medium text-gray-600">{{ score.category }}</span>
+                <span class="text-xs text-gray-400">{{ (score.weight * 100)|round|int }}%</span>
+            </div>
+            <div class="text-2xl font-bold {% if score.score >= 80 %}text-green-600{% elif score.score >= 50 %}text-yellow-600{% else %}text-red-600{% endif %}">
+                {{ score.score|round|int }}
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2 mt-2">
+                <div class="h-2 rounded-full {% if score.score >= 80 %}bg-green-500{% elif score.score >= 50 %}bg-yellow-500{% else %}bg-red-500{% endif %}"
+                    style="width: {{ score.score }}%"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Radar Chart -->
+    <div class="bg-white rounded-xl shadow-sm border p-6 mb-6">
+        <h3 class="text-lg font-semibold mb-4">Score Distribution</h3>
+        <div class="max-w-lg mx-auto">
+            <canvas id="radarChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="bg-white rounded-xl shadow-sm border">
+        <div class="border-b">
+            <nav class="flex -mb-px">
+                <button @click="tab = 'issues'" :class="tab === 'issues' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    class="px-6 py-3 border-b-2 font-medium text-sm">
+                    Issues ({{ issues|length }})
+                </button>
+                <button @click="tab = 'pages'" :class="tab === 'pages' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    class="px-6 py-3 border-b-2 font-medium text-sm">
+                    Pages ({{ pages|length }})
+                </button>
+                <button @click="tab = 'fixes'" :class="tab === 'fixes' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    class="px-6 py-3 border-b-2 font-medium text-sm">
+                    Fixes ({{ fixes|length }})
+                </button>
+            </nav>
+        </div>
+
+        <!-- Issues Tab -->
+        <div x-show="tab === 'issues'" class="p-4">
+            <!-- Filters -->
+            <div class="flex gap-4 mb-4">
+                <select x-model="issueFilter.severity" class="rounded-lg border-gray-300 border px-3 py-1.5 text-sm">
+                    <option value="">All Severities</option>
+                    <option value="critical">Critical</option>
+                    <option value="warning">Warning</option>
+                    <option value="info">Info</option>
+                </select>
+                <select x-model="issueFilter.category" class="rounded-lg border-gray-300 border px-3 py-1.5 text-sm">
+                    <option value="">All Categories</option>
+                    {% for score in scores %}
+                    <option value="{{ score.category }}">{{ score.category }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-2 text-left font-medium text-gray-600">Severity</th>
+                            <th class="px-4 py-2 text-left font-medium text-gray-600">Category</th>
+                            <th class="px-4 py-2 text-left font-medium text-gray-600">Issue</th>
+                            <th class="px-4 py-2 text-left font-medium text-gray-600">Page</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y">
+                        {% for issue in issues %}
+                        <tr class="hover:bg-gray-50 issue-row" data-severity="{{ issue.severity.value }}" data-category="{{ issue.category }}">
+                            <td class="px-4 py-3">
+                                <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium
+                                    {% if issue.severity.value == 'critical' %}bg-red-100 text-red-700
+                                    {% elif issue.severity.value == 'warning' %}bg-yellow-100 text-yellow-700
+                                    {% else %}bg-blue-100 text-blue-700{% endif %}">
+                                    {{ issue.severity.value }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-gray-600">{{ issue.category }}</td>
+                            <td class="px-4 py-3">
+                                <div class="text-gray-900">{{ issue.message }}</div>
+                                {% if issue.details %}
+                                <div class="text-xs text-gray-400 mt-0.5 truncate max-w-md">{{ issue.details }}</div>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-gray-500 truncate max-w-xs">{{ issue.page_url or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Pages Tab -->
+        <div x-show="tab === 'pages'" class="p-4">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-2 text-left font-medium text-gray-600">URL</th>
+                            <th class="px-4 py-2 text-left font-medium text-gray-600">Status</th>
+                            <th class="px-4 py-2 text-left font-medium text-gray-600">Title</th>
+                            <th class="px-4 py-2 text-left font-medium text-gray-600">Words</th>
+                            <th class="px-4 py-2 text-left font-medium text-gray-600">Response</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y">
+                        {% for page in pages %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3 text-indigo-600 truncate max-w-xs">{{ page.url }}</td>
+                            <td class="px-4 py-3">
+                                <span class="{% if page.status_code == 200 %}text-green-600{% elif page.status_code >= 400 %}text-red-600{% else %}text-yellow-600{% endif %}">
+                                    {{ page.status_code or '-' }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 truncate max-w-xs text-gray-700">{{ page.title or '-' }}</td>
+                            <td class="px-4 py-3 text-gray-600">{{ page.word_count or '-' }}</td>
+                            <td class="px-4 py-3 text-gray-600">{{ '%.1f'|format(page.response_time) if page.response_time else '-' }}s</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Fixes Tab -->
+        <div x-show="tab === 'fixes'" class="p-4">
+            <div class="flex gap-2 mb-4">
+                <a href="/api/fixes/{{ job.id }}/sitemap" class="px-3 py-1.5 bg-gray-100 rounded text-sm hover:bg-gray-200">Download sitemap.xml</a>
+                <a href="/api/fixes/{{ job.id }}/robots" class="px-3 py-1.5 bg-gray-100 rounded text-sm hover:bg-gray-200">Download robots.txt</a>
+            </div>
+            <div class="space-y-4">
+                {% for fix in fixes %}
+                <div class="border rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <div>
+                            <span class="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full">{{ fix.fix_type }}</span>
+                            <span class="text-sm text-gray-700 ml-2">{{ fix.description }}</span>
+                        </div>
+                        <button onclick="navigator.clipboard.writeText(this.closest('.border').querySelector('code').textContent)"
+                            class="text-xs text-indigo-600 hover:text-indigo-800 px-2 py-1 rounded hover:bg-indigo-50">Copy</button>
+                    </div>
+                    {% if fix.page_url %}
+                    <p class="text-xs text-gray-400 mb-2">{{ fix.page_url }}</p>
+                    {% endif %}
+                    {% if fix.original %}
+                    <div class="bg-red-50 rounded p-2 mb-2 text-xs overflow-x-auto">
+                        <code class="text-red-700 whitespace-pre">{{ fix.original }}</code>
+                    </div>
+                    {% endif %}
+                    <div class="bg-green-50 rounded p-2 text-xs overflow-x-auto">
+                        <code class="text-green-700 whitespace-pre">{{ fix.suggested }}</code>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/report.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const scores = [
+        {% for score in scores %}
+        { "category": "{{ score.category }}", "score": {{ score.score }}, "weight": {{ score.weight }} }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+    initCharts({{ job.overall_score|round|int }}, scores);
+});
+</script>
+{% endblock %}

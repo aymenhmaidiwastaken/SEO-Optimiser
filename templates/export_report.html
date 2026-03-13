@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SEO Report - {{ job.url }}</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1a1a1a; max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+        h1 { color: #4f46e5; border-bottom: 2px solid #4f46e5; padding-bottom: 10px; }
+        h2 { color: #374151; margin-top: 30px; }
+        .score-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-weight: bold; font-size: 14px; }
+        .score-good { background: #dcfce7; color: #166534; }
+        .score-ok { background: #fef9c3; color: #854d0e; }
+        .score-bad { background: #fee2e2; color: #991b1b; }
+        .overall { font-size: 48px; font-weight: bold; text-align: center; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 14px; }
+        th { background: #f3f4f6; padding: 8px 12px; text-align: left; font-weight: 600; }
+        td { padding: 8px 12px; border-bottom: 1px solid #e5e7eb; }
+        .severity-critical { color: #dc2626; font-weight: bold; }
+        .severity-warning { color: #d97706; }
+        .severity-info { color: #2563eb; }
+        .fix-block { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px; margin: 10px 0; }
+        .fix-block code { white-space: pre-wrap; font-size: 12px; }
+        .category-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        .category-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; }
+        .bar { height: 6px; border-radius: 3px; background: #e5e7eb; margin-top: 8px; }
+        .bar-fill { height: 100%; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>SEO Audit Report</h1>
+    <p><strong>URL:</strong> {{ job.url }}</p>
+    <p><strong>Pages Analyzed:</strong> {{ pages|length }}</p>
+    <p><strong>Date:</strong> {{ job.created_at.strftime('%B %d, %Y') }}</p>
+
+    <div class="overall {% if job.overall_score >= 80 %}score-good{% elif job.overall_score >= 50 %}score-ok{% else %}score-bad{% endif %}" style="padding: 20px; border-radius: 12px; margin: 20px 0;">
+        {{ job.overall_score|round|int }}/100
+    </div>
+
+    <h2>Category Scores</h2>
+    <div class="category-grid">
+        {% for score in scores %}
+        <div class="category-card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <strong>{{ score.category }}</strong>
+                <span class="score-badge {% if score.score >= 80 %}score-good{% elif score.score >= 50 %}score-ok{% else %}score-bad{% endif %}">
+                    {{ score.score|round|int }}
+                </span>
+            </div>
+            <div class="bar">
+                <div class="bar-fill" style="width: {{ score.score }}%; background: {% if score.score >= 80 %}#22c55e{% elif score.score >= 50 %}#eab308{% else %}#ef4444{% endif %};"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <h2>Issues Found ({{ issues|length }})</h2>
+    <table>
+        <thead><tr><th>Severity</th><th>Category</th><th>Issue</th><th>Page</th></tr></thead>
+        <tbody>
+        {% for issue in issues %}
+        <tr>
+            <td class="severity-{{ issue.severity.value }}">{{ issue.severity.value }}</td>
+            <td>{{ issue.category }}</td>
+            <td>{{ issue.message }}</td>
+            <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis;">{{ issue.page_url or '-' }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Suggested Fixes</h2>
+    {% for fix in fixes[:30] %}
+    <div class="fix-block">
+        <strong>{{ fix.fix_type }}</strong>: {{ fix.description }}
+        {% if fix.page_url %}<br><small>{{ fix.page_url }}</small>{% endif %}
+        <pre><code>{{ fix.suggested }}</code></pre>
+    </div>
+    {% endfor %}
+
+    <h2>Pages Analyzed</h2>
+    <table>
+        <thead><tr><th>URL</th><th>Status</th><th>Title</th><th>Words</th></tr></thead>
+        <tbody>
+        {% for page in pages %}
+        <tr>
+            <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">{{ page.url }}</td>
+            <td>{{ page.status_code or '-' }}</td>
+            <td>{{ page.title or '-' }}</td>
+            <td>{{ page.word_count or '-' }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

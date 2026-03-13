@@ -88,8 +88,8 @@ Ready-to-use code snippets — meta tags, JSON-LD, sitemap, robots.txt — with 
 
 ```bash
 # Clone the repo
-git clone https://github.com/yourusername/seo-optimiser.git
-cd seo-optimiser
+git clone https://github.com/aymenhmaidiwastaken/SEO-Optimiser.git
+cd SEO-Optimiser
 
 # Install dependencies
 pip install -r requirements.txt
